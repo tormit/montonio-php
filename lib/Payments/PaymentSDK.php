@@ -6,8 +6,6 @@ namespace Montonio\Payments;
  * We use php-jwt for JWT creation
  */
 
-use Firebase\JWT\JWT;
-
 /**
  * SDK for Montonio Payments.
  * This class contains methods for starting and validating payments.
@@ -15,7 +13,8 @@ use Firebase\JWT\JWT;
 
 class PaymentSDK
 {
-    
+    const JWT_TOKEN_ALGO = 'HS256';
+
     /**
      * Payment Data for Montonio Payment Token generation
      * @see https://payments-docs.montonio.com/#generating-the-payment-token
@@ -126,14 +125,14 @@ class PaymentSDK
         $exp                = time() + (10 * 60);
         $paymentData['exp'] = $exp;
 
-        return \Firebase\JWT\JWT::encode($paymentData, $this->_secretKey);
+        return \Firebase\JWT\JWT::encode($paymentData, $this->_secretKey, self::JWT_TOKEN_ALGO);
     }
 
     /**
      * Set payment data
      *
      * @param array $paymentData
-     * @return MontonioPaymentsSDK
+     * @return static
      */
     public function setPaymentData($paymentData)
     {
@@ -147,13 +146,13 @@ class PaymentSDK
      * @see https://payments-docs.montonio.com/#validating-the-returned-payment-token
      *
      * @param string $token - The Payment Token
-     * @param string Your Secret Key for the environment
+     * @param string $secretKey Your Secret Key for the environment
      * @return object The decoded Payment token
      */
     public static function decodePaymentToken($token, $secretKey)
     {
         \Firebase\JWT\JWT::$leeway = 60 * 5; // 5 minutes
-        return \Firebase\JWT\JWT::decode($token, $secretKey, array('HS256'));
+        return \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($secretKey, self::JWT_TOKEN_ALGO));
     }
 
     /**
@@ -169,14 +168,14 @@ class PaymentSDK
             'access_key' => $accessKey,
         );
 
-        return \Firebase\JWT\JWT::encode($data, $secretKey);
+        return \Firebase\JWT\JWT::encode($data, $secretKey, self::JWT_TOKEN_ALGO);
     }
 
     /**
      * Function for making API calls with file_get_contents
      *
-     * @param string URL
-     * @param array Context Options
+     * @param string $url URL
+     * @param array $options Context Options
      * @return array Array containing status and json_decoded response
      */
     protected function _apiRequest($url, $options)
@@ -187,7 +186,7 @@ class PaymentSDK
         if ($result === false) {
             return array(
                 "status" => "ERROR",
-                "data"   => $result,
+                "data"   => false,
             );
         } else {
             return array(
@@ -200,12 +199,12 @@ class PaymentSDK
     /**
      * Fetch info about banks and card processors that
      * can be shown to the customer at checkout.
-     * 
-     * Banks have different identifiers for separate regions, 
+     *
+     * Banks have different identifiers for separate regions,
      * but the identifier for card payments is uppercase CARD
      * in all regions.
      * @see MontonioPaymentsCheckout::$bankList
-     * 
+     *
      * @return array Array containing the status of the request and the banklist
      */
     public function fetchBankList()
@@ -217,7 +216,7 @@ class PaymentSDK
         $options = array(
             'http' => array(
                 'header' => "Content-Type: application/json\r\n" .
-                "Authorization: Bearer " . MontonioPaymentsSDK::getBearerToken(
+                "Authorization: Bearer " . self::getBearerToken(
                     $this->_accessKey,
                     $this->_secretKey
                 ) . "\r\n",

@@ -35,3 +35,7 @@ $montonio = new \Montonio\Payments\PaymentSDK(
 );
 ```
 
+## Official docs
+
+https://docs.montonio.com/docs/api/payments
+
