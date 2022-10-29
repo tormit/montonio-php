@@ -13,7 +13,26 @@ namespace Montonio\Payments;
 
 class PaymentSDK
 {
-    const JWT_TOKEN_ALGO = 'HS256';
+    public const CURRENCY_EUR = 'EUR';
+    public const CURRENCY_PLN = 'PLN';
+
+    private const JWT_TOKEN_ALGO = 'HS256';
+
+    /**
+     * Root URL for the Montonio Payments Sandbox application
+     */
+    private const MONTONIO_PAYMENTS_SANDBOX_APPLICATION_URL = 'https://sandbox-payments.montonio.com';
+
+    /**
+     * Root URL for the Montonio Payments application
+     */
+    private const MONTONIO_PAYMENTS_APPLICATION_URL = 'https://payments.montonio.com';
+    private const TOKEN_EXPIRY_SECONDS = 10 * 60;
+
+    private static array $validCurrencies = [
+        self::CURRENCY_EUR,
+        self::CURRENCY_PLN,
+    ];
 
     /**
      * Payment Data for Montonio Payment Token generation
@@ -21,43 +40,33 @@ class PaymentSDK
      *
      * @var array
      */
-    protected $_paymentData;
+    protected array $_paymentData;
 
     /**
      * Montonio Access Key
      *
      * @var string
      */
-    protected $_accessKey;
+    protected string $_accessKey;
 
     /**
      * Montonio Secret Key
      *
      * @var string
      */
-    protected $_secretKey;
+    protected string $_secretKey;
 
     /**
      * Montonio Environment (Use sandbox for testing purposes)
      *
      * @var string 'production' or 'sandbox'
      */
-    protected $_environment;
+    protected string $_environment;
 
-    /**
-     * Root URL for the Montonio Payments Sandbox application
-     */
-    const MONTONIO_PAYMENTS_SANDBOX_APPLICATION_URL = 'https://sandbox-payments.montonio.com';
-
-    /**
-     * Root URL for the Montonio Payments application
-     */
-    const MONTONIO_PAYMENTS_APPLICATION_URL = 'https://payments.montonio.com';
-
-    public function __construct($accessKey, $secretKey, $environment)
+    public function __construct(string $accessKey, string $secretKey, string $environment)
     {
-        $this->_accessKey   = $accessKey;
-        $this->_secretKey   = $secretKey;
+        $this->_accessKey = $accessKey;
+        $this->_secretKey = $secretKey;
         $this->_environment = $environment;
     }
 
@@ -86,11 +95,14 @@ class PaymentSDK
          * Parse Payment Data to correct data types
          * and add additional data
          */
+        if (!in_array($this->_paymentData['currency'], self::$validCurrencies)) {
+            throw new \Exception\MontonioException('Invalid currency');
+        }
+
         $paymentData = array(
             'amount'                => (float) $this->_paymentData['amount'],
-            'access_key'            => (string) $this->_accessKey,
+            'access_key'            => $this->_accessKey,
             'currency'              => (string) $this->_paymentData['currency'],
-            'merchant_name'         => (string) $this->_paymentData['merchant_name'],
             'merchant_reference'    => (string) $this->_paymentData['merchant_reference'],
             'merchant_return_url'   => (string) $this->_paymentData['merchant_return_url'],
             'checkout_email'        => (string) $this->_paymentData['checkout_email'],
@@ -122,7 +134,7 @@ class PaymentSDK
         }
 
         // add expiry to payment data for JWT validation
-        $exp                = time() + (10 * 60);
+        $exp                = time() + self::TOKEN_EXPIRY_SECONDS;
         $paymentData['exp'] = $exp;
 
         return \Firebase\JWT\JWT::encode($paymentData, $this->_secretKey, self::JWT_TOKEN_ALGO);
@@ -134,9 +146,21 @@ class PaymentSDK
      * @param array $paymentData
      * @return static
      */
-    public function setPaymentData($paymentData)
+    public function setPaymentData(array $paymentData): PaymentSDK
     {
         $this->_paymentData = $paymentData;
+        return $this;
+    }
+
+    /**
+     * Set payment data
+     *
+     * @param \Montonio\Payments\Model\PaymentData $paymentData
+     * @return static
+     */
+    public function setPaymentDataFromModel(\Montonio\Payments\Model\PaymentData $paymentData): PaymentSDK
+    {
+        $this->_paymentData = $paymentData->toArray();
         return $this;
     }
 
