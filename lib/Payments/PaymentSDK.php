@@ -27,7 +27,8 @@ class PaymentSDK
      * Root URL for the Montonio Payments application
      */
     private const MONTONIO_PAYMENTS_APPLICATION_URL = 'https://payments.montonio.com';
-    private const TOKEN_EXPIRY_SECONDS = 10 * 60;
+    private const PAYMENT_TOKEN_EXPIRY_SECONDS = 10 * 60; // 10 minutes
+    private const VALIDATION_TOKEN_EXPIRY_SECONDS = 60 * 5; // 5 minutes
 
     private static array $validCurrencies = [
         self::CURRENCY_EUR,
@@ -134,7 +135,7 @@ class PaymentSDK
         }
 
         // add expiry to payment data for JWT validation
-        $exp                = time() + self::TOKEN_EXPIRY_SECONDS;
+        $exp                = time() + self::PAYMENT_TOKEN_EXPIRY_SECONDS;
         $paymentData['exp'] = $exp;
 
         return \Firebase\JWT\JWT::encode($paymentData, $this->_secretKey, self::JWT_TOKEN_ALGO);
@@ -175,8 +176,49 @@ class PaymentSDK
      */
     public static function decodePaymentToken($token, $secretKey)
     {
-        \Firebase\JWT\JWT::$leeway = 60 * 5; // 5 minutes
+        \Firebase\JWT\JWT::$leeway = self::VALIDATION_TOKEN_EXPIRY_SECONDS;
         return \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($secretKey, self::JWT_TOKEN_ALGO));
+    }
+
+    /**
+     * Decode the Payment Token to data object
+     * @param string $token - The Payment Token
+     * @param string $secretKey Your Secret Key for the environment
+     * @return \Montonio\Payments\Model\ReturnData The decoded return data
+     * @see \Montonio\Payments\PaymentSDK::decodePaymentToken
+     */
+    public static function decodePaymentTokenToModel(string $token, string $secretKey): \Montonio\Payments\Model\ReturnData
+    {
+        return \Montonio\Payments\Model\ReturnData::fromToken(
+            self::decodePaymentToken($token, $secretKey)
+        );
+    }
+
+    /**
+     * @param string $token
+     * @param string $accessKey
+     * @param string $secretKey
+     * @param string $orderId
+     * @param \Montonio\Payments\Model\ReturnData|null $returnData Return token data will be stored here if successful payment
+     * @return bool
+     */
+    public static function isPaymentFinalized(
+        string $token,
+        string $accessKey,
+        string $secretKey,
+        string $orderId,
+        ?\Montonio\Payments\Model\ReturnData &$returnData = null
+    ): bool {
+        $decoded = self::decodePaymentTokenToModel($token, $secretKey);
+
+        if ($decoded->access_key === $accessKey
+            && $decoded->merchant_reference === $orderId
+            && $decoded->status === \Montonio\Payments\Model\ReturnData::STATUS_FINALIZED) {
+            $returnData = $decoded;
+            return true;
+        }
+
+        return false;
     }
 
     /**
