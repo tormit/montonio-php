@@ -10,10 +10,14 @@
             "name": "Montonio & Kristen L.",
             "homepage": "https://montonio.com",
             "role": "Developer"
+        },
+        {
+            "name": "Tormi Talv",
+            "role": "Developer"
         }
     ],
     "require": {
-        "php": ">=7.4.0",
+        "php": ">=8.1",
         "firebase/php-jwt": "*"
     },
     "autoload": {

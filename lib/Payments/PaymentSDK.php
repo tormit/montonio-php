@@ -21,12 +21,12 @@ class PaymentSDK
     /**
      * Root URL for the Montonio Payments Sandbox application
      */
-    private const MONTONIO_PAYMENTS_SANDBOX_APPLICATION_URL = 'https://sandbox-payments.montonio.com';
+    private const MONTONIO_PAYMENTS_SANDBOX_APPLICATION_URL = 'https://sandbox-stargate.montonio.com/api';
 
     /**
      * Root URL for the Montonio Payments application
      */
-    private const MONTONIO_PAYMENTS_APPLICATION_URL = 'https://payments.montonio.com';
+    private const MONTONIO_PAYMENTS_APPLICATION_URL = 'https://stargate.montonio.com/api';
     private const PAYMENT_TOKEN_EXPIRY_SECONDS = 10 * 60; // 10 minutes
     private const VALIDATION_TOKEN_EXPIRY_SECONDS = 60 * 5; // 5 minutes
 
@@ -36,12 +36,12 @@ class PaymentSDK
     ];
 
     /**
-     * Payment Data for Montonio Payment Token generation
-     * @see https://payments-docs.montonio.com/#generating-the-payment-token
+     * Order data structure
+     * @see https://docs.montonio.com/api/stargate/guides/orders
      *
-     * @var array
+     * @var \Montonio\Payments\Model\PaymentData
      */
-    protected array $_paymentData;
+    protected \Montonio\Payments\Model\PaymentData $_paymentData;
 
     /**
      * Montonio Access Key
@@ -101,32 +101,22 @@ class PaymentSDK
         }
 
         $paymentData = array(
-            'amount'                => (float) $this->_paymentData['amount'],
-            'access_key'            => $this->_accessKey,
-            'currency'              => (string) $this->_paymentData['currency'],
-            'merchant_reference'    => (string) $this->_paymentData['merchant_reference'],
-            'merchant_return_url'   => (string) $this->_paymentData['merchant_return_url'],
-            'checkout_email'        => (string) $this->_paymentData['checkout_email'],
-            'checkout_first_name'   => (string) $this->_paymentData['checkout_first_name'],
-            'checkout_last_name'    => (string) $this->_paymentData['checkout_last_name'],
-            'checkout_phone_number' => (string) $this->_paymentData['checkout_phone_number'],
+            'accessKey' => $this->_accessKey,
+            'merchantReference' => $this->_paymentData->merchant_reference,
+            'returnUrl' => $this->_paymentData->merchant_return_url,
+            'notificationUrl' => $this->_paymentData->merchant_notification_url,
+            'grandTotal' => $this->_paymentData->amount,
+            'currency' => $this->_paymentData->currency,
+            'exp' => time() + self::PAYMENT_TOKEN_EXPIRY_SECONDS,
+            'payment' => $this->_paymentData->payment->toArray(),
+            'locale' => $this->_paymentData->preselected_locale,
+            'expiresIn' => 30,
+            'billingAddress' => $this->_paymentData->billing_address?->toArray() ?? [],
+            'shippingAddress' => $this->_paymentData->billing_address?->toArray() ?? [],
+            'lineItems' => array_map(function (\Montonio\Payments\Model\LineItem $line) {
+                return $line->toArray();
+            }, $this->_paymentData->lines),
         );
-
-        if (isset($this->_paymentData['merchant_notification_url'])) {
-            $paymentData['merchant_notification_url'] = (string) $this->_paymentData['merchant_notification_url'];
-        }
-
-        if (isset($this->_paymentData['preselected_aspsp'])) {
-            $paymentData['preselected_aspsp'] = (string) $this->_paymentData['preselected_aspsp'];
-        }
-
-        if (isset($this->_paymentData['preselected_locale'])) {
-            $paymentData['preselected_locale'] = (string) $this->_paymentData['preselected_locale'];
-        }
-
-        if (isset($this->_paymentData['preselected_country'])) {
-            $paymentData['preselected_country'] = (string) $this->_paymentData['preselected_country'];
-        }
 
         foreach ($paymentData as $key => $value) {
             if (empty($value)) {
@@ -134,23 +124,7 @@ class PaymentSDK
             }
         }
 
-        // add expiry to payment data for JWT validation
-        $exp                = time() + self::PAYMENT_TOKEN_EXPIRY_SECONDS;
-        $paymentData['exp'] = $exp;
-
         return \Firebase\JWT\JWT::encode($paymentData, $this->_secretKey, self::JWT_TOKEN_ALGO);
-    }
-
-    /**
-     * Set payment data
-     *
-     * @param array $paymentData
-     * @return static
-     */
-    public function setPaymentData(array $paymentData): PaymentSDK
-    {
-        $this->_paymentData = $paymentData;
-        return $this;
     }
 
     /**
@@ -159,9 +133,9 @@ class PaymentSDK
      * @param \Montonio\Payments\Model\PaymentData $paymentData
      * @return static
      */
-    public function setPaymentDataFromModel(\Montonio\Payments\Model\PaymentData $paymentData): PaymentSDK
+    public function setPaymentData(\Montonio\Payments\Model\PaymentData $paymentData): PaymentSDK
     {
-        $this->_paymentData = $paymentData->toArray();
+        $this->_paymentData = $paymentData;
         return $this;
     }
 
@@ -269,15 +243,15 @@ class PaymentSDK
      * Banks have different identifiers for separate regions,
      * but the identifier for card payments is uppercase CARD
      * in all regions.
-     * @see MontonioPaymentsCheckout::$bankList
+     * @see https://docs.montonio.com/api/stargate/reference#get-available-payment-methods
      *
      * @return array Array containing the status of the request and the banklist
      */
     public function fetchBankList(): array
     {
         $url = $this->_environment === 'sandbox'
-        ? 'https://api.sandbox-payments.montonio.com/pis/v2/merchants/aspsps'
-        : 'https://api.payments.montonio.com/pis/v2/merchants/aspsps';
+            ? sprintf('%s/stores/payment-methods', self::MONTONIO_PAYMENTS_SANDBOX_APPLICATION_URL)
+            : sprintf('%s/stores/payment-methods', self::MONTONIO_PAYMENTS_APPLICATION_URL);
 
         $options = array(
             'http' => array(
