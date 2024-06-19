@@ -76,7 +76,7 @@ class PaymentSDK
      *
      * @return string
      */
-    public function getPaymentUrl()
+    public function getPaymentUrl(): string
     {
         $base = ($this->_environment === 'sandbox')
         ? self::MONTONIO_PAYMENTS_SANDBOX_APPLICATION_URL
@@ -90,7 +90,7 @@ class PaymentSDK
      *
      * @return string
      */
-    protected function _generatePaymentToken()
+    protected function _generatePaymentToken(): string
     {
         /**
          * Parse Payment Data to correct data types
@@ -174,7 +174,7 @@ class PaymentSDK
      * @param string $secretKey Your Secret Key for the environment
      * @return object The decoded Payment token
      */
-    public static function decodePaymentToken($token, $secretKey)
+    public static function decodePaymentToken(string $token, string $secretKey): \stdClass
     {
         \Firebase\JWT\JWT::$leeway = self::VALIDATION_TOKEN_EXPIRY_SECONDS;
         return \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($secretKey, self::JWT_TOKEN_ALGO));
@@ -228,7 +228,7 @@ class PaymentSDK
      * @param string $secretKey - Your Secret Key
      * @return string
      */
-    static function getBearerToken($accessKey, $secretKey)
+    static function getBearerToken(string $accessKey, string $secretKey): string
     {
         $data = array(
             'access_key' => $accessKey,
@@ -244,7 +244,7 @@ class PaymentSDK
      * @param array $options Context Options
      * @return array Array containing status and json_decoded response
      */
-    protected function _apiRequest($url, $options)
+    protected function _apiRequest(string $url, array $options): array
     {
         $context = stream_context_create($options);
         $result  = @file_get_contents($url, false, $context);
@@ -273,7 +273,7 @@ class PaymentSDK
      *
      * @return array Array containing the status of the request and the banklist
      */
-    public function fetchBankList()
+    public function fetchBankList(): array
     {
         $url = $this->_environment === 'sandbox'
         ? 'https://api.sandbox-payments.montonio.com/pis/v2/merchants/aspsps'
